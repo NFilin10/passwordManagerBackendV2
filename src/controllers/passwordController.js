@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require("../database");
 const crypto = require('crypto');
+const {login} = require("./authController");
 
 
 function encryptPassword(text, masterPassword) {
@@ -47,6 +48,41 @@ const addPassword = async (req, res) => {
 }
 
 
+const getPassword = async (req, res) => {
+
+    console.log(req.userId)
+
+    const user = await pool.query("SELECT * FROM users WHERE id = $1", [req.userId]);
+    if (user.rows.length === 0) return res.status(401).json({ error: "User is not registered" , userID: req.userId});
+
+    const userPass = user.rows[0].password
+
+    try {
+        const passwords = await pool.query(
+            `SELECT id, service_name, link, login, password FROM passwords 
+             WHERE user_id = $1`,
+            [req.userId]
+        );
+
+        const decryptedPasswords = passwords.rows.map(row => {
+            const { id, service_name, link, login, password, logo } = row;
+            const salt = password.slice(0, 32); // Extract salt from the encrypted password
+            const iv = password.slice(-32); // Extract IV from the encrypted password
+            const encryptedData = password.slice(32, -32); // Extract encrypted data
+            const decryptedPass = decryptPassword(encryptedData, salt, iv, userPass);
+
+            return { id, service_name, link, login, password: decryptedPass, logo };
+        })
+
+        res.json(Object.values(decryptedPasswords));
+    } catch (error) {
+        console.error('Error fetching passwords:', error);
+        res.status(500).json({ error: error });
+    }
+}
+
+
 module.exports = {
-    addPassword
+    addPassword,
+    getPassword
 };
