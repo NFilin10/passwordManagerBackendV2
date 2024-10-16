@@ -2,6 +2,8 @@
 const express = require('express');
 const cors = require('cors')
 const passwordsRoute = require('./routes/passwords.route')
+const authRoute = require('./routes/auth.route')
+
 
 require('dotenv').config();
 
@@ -10,7 +12,6 @@ const cookieParser = require('cookie-parser');
 const port = process.env.PORT || 8080;
 const app = express();
 app.set("trust proxy", 1);
-
 
 
 const corsOptions ={
@@ -27,6 +28,7 @@ app.use(cookieParser());
 
 
 app.use('/', passwordsRoute);
+app.use('/auth/', authRoute);
 
 
 
