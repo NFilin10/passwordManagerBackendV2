@@ -1,7 +1,6 @@
 const express = require('express');
 const pool = require("../database");
 const crypto = require('crypto');
-const {login} = require("./authController");
 
 
 function encryptPassword(text, masterPassword) {
@@ -11,7 +10,7 @@ function encryptPassword(text, masterPassword) {
     const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    encrypted = salt.toString('hex') + encrypted + iv.toString('hex'); // Convert salt and iv to hex strings
+    encrypted = salt.toString('hex') + encrypted + iv.toString('hex');
     return encrypted;
 }
 
@@ -37,7 +36,7 @@ const addPassword = async (req, res) => {
     try {
 
         await pool.query(
-            "INSERT INTO passwords (service_name, link, login, password, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+            "INSERT INTO passwords (service_name, link, login, password, user_id) VALUES ($1, $2, $3, $4, $5)",
             [data.service_name, data.link, data.login, encrtptedPass, req.userId]
         );
         res.status(201).json({ message: 'Password added successfully' });
@@ -49,8 +48,6 @@ const addPassword = async (req, res) => {
 
 
 const getPassword = async (req, res) => {
-
-    console.log(req.userId)
 
     const user = await pool.query("SELECT * FROM users WHERE id = $1", [req.userId]);
     if (user.rows.length === 0) return res.status(401).json({ error: "User is not registered" , userID: req.userId});
@@ -82,7 +79,49 @@ const getPassword = async (req, res) => {
 }
 
 
+const deletePassword = async (req, res) => {
+    try {
+        const { id } = req.params
+
+        await pool.query(
+            "DELETE FROM passwords WHERE id = $1 AND user_id = $2",
+            [id, req.userId]
+        );
+        res.status(201).json({ message: 'Password deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: 'Internal Server Error. Error deleting password' });
+    }
+}
+
+
+const updatePassword = async (req, res) => {
+    const { id } = req.params
+    const data = req.body;
+
+    const user = await pool.query("SELECT * FROM users WHERE id = $1", [req.userId]);
+    if (user.rows.length === 0) return res.status(401).json({ error: "User is not registered" });
+
+    const userPass = user.rows[0].password
+
+    const encrtptedPass = encryptPassword(data.password, userPass)
+
+    try {
+        await pool.query(
+            "UPDATE passwords SET service_name = $1, link = $2, login = $3, password = $4 WHERE id = $5 AND user_id = $6",
+            [data.service_name, data.link, data.login, encrtptedPass, id, req.userId]
+        );
+        res.status(201).json({ message: 'Password updated successfully' });
+
+    } catch (error) {
+        console.error('Error updating password:', error);
+        res.status(500).json({ error: 'Internal Server Error Error updating password' });
+    }
+}
+
+
 module.exports = {
     addPassword,
-    getPassword
+    getPassword,
+    deletePassword,
+    updatePassword
 };
